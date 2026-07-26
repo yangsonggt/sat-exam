@@ -9,11 +9,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: handle 401 → refresh
+// Response interceptor: handle 401 → refresh (skip for login endpoint)
 api.interceptors.response.use(
   (r) => r,
   async (error) => {
-    if (error.response?.status === 401 && !error.config._retry) {
+    const isLoginRequest = error.config?.url === '/auth/login';
+    if (error.response?.status === 401 && !isLoginRequest && !error.config._retry) {
       error.config._retry = true;
       try {
         const refresh = localStorage.getItem('refresh_token');
