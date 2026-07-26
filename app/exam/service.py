@@ -12,6 +12,7 @@ from app.models import (
     ExamSelectionRule,
     Question,
 )
+from sqlalchemy.orm import selectinload
 from app.exam.schemas import ExamCreate, ExamUpdate
 
 
@@ -57,7 +58,11 @@ async def create_exam(db: AsyncSession, data: ExamCreate, user_id: str) -> Exam:
 
 async def get_exam(db: AsyncSession, exam_id: str) -> Exam:
     """Get an exam by ID with modules and selection rules."""
-    result = await db.execute(select(Exam).where(Exam.id == exam_id))
+    result = await db.execute(
+        select(Exam)
+        .options(selectinload(Exam.modules).selectinload(ExamModule.selection_rules))
+        .where(Exam.id == exam_id)
+    )
     exam = result.scalar_one_or_none()
     if exam is None:
         raise HTTPException(
