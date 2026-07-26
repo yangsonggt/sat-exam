@@ -46,6 +46,15 @@ function RichEditor({ content, onChange, placeholder, height = 'h-48' }: { conte
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
 
+  // Sync external content changes into the editor
+  useEffect(() => {
+    if (!editor) return;
+    const currentHTML = editor.getHTML();
+    if (content && content !== currentHTML) {
+      editor.commands.setContent(content);
+    }
+  }, [editor, content]);
+
   const handleImage = useCallback(async () => {
     const input = document.createElement('input');
     input.type = 'file';
