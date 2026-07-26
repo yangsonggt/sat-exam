@@ -98,17 +98,22 @@ export default function QuestionEditor() {
   useEffect(() => {
     if (isNew) return;
     questionApi.get(id!).then(({ data }) => {
-      const v = data.current_version;
-      setSection(data.section);
-      setType(data.type);
-      setStem(v?.stem || '');
-      setPassage(v?.passage || '');
-      setExplanation(v?.explanation || '');
-      setAnswer(v?.correct_answer || '');
+      const v = data.current_version || {};
+      setSection(data.section || 'reading_writing');
+      setType(data.type || 'multiple_choice');
+      setStem(v.stem || '');
+      setPassage(v.passage || '');
+      setExplanation(v.explanation || '');
+      setAnswer(v.correct_answer || '');
       setSkill(data.skill || '');
       setDifficulty(data.difficulty || 'medium');
-      if (v?.options) setOptions(v.options);
-    }).catch(() => {});
+      if (v.options && Array.isArray(v.options)) {
+        setOptions(v.options);
+      }
+    }).catch((err) => {
+      console.error('Failed to load question:', err);
+      alert('Failed to load question: ' + (err?.response?.data?.detail?.message || err.message));
+    });
   }, [id, isNew]);
 
   const handleSave = async () => {
