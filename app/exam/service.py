@@ -88,9 +88,12 @@ async def list_exams(
     total = total_result.scalar()
 
     result = await db.execute(
-        q.order_by(Exam.created_at.desc()).offset(offset).limit(limit)
+        q.options(selectinload(Exam.modules).selectinload(ExamModule.selection_rules))
+        .order_by(Exam.created_at.desc()).offset(offset).limit(limit)
     )
-    return list(result.scalars().all()), total
+    exams = list(result.scalars().all())
+
+    return exams, total
 
 
 async def validate_publish(db: AsyncSession, exam_id: str) -> list[dict]:

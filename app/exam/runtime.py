@@ -120,9 +120,12 @@ async def start_attempt(db: AsyncSession, user_id: str, exam_id: str) -> Attempt
 async def _get_module(
     db: AsyncSession, exam_id: str, section: str, module_no: int, form: str
 ) -> Optional[ExamModule]:
-    """Get a specific exam module."""
+    """Get a specific exam module with eager-loaded selection rules."""
+    from sqlalchemy.orm import selectinload
     result = await db.execute(
-        select(ExamModule).where(
+        select(ExamModule)
+        .options(selectinload(ExamModule.selection_rules))
+        .where(
             ExamModule.exam_id == exam_id,
             ExamModule.section == section,
             ExamModule.module_no == module_no,

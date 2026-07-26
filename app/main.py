@@ -30,6 +30,12 @@ def create_app() -> FastAPI:
     async def health():
         return {"status": "ok", "version": "0.1.0"}
 
+    # Root redirect to docs
+    from fastapi.responses import RedirectResponse
+    @app.get("/")
+    async def root():
+        return RedirectResponse(url="/api/docs")
+
     # Mount routers
     from app.auth.router import router as auth_router, admin_router
     from app.upload.router import router as upload_router
