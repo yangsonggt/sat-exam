@@ -1,0 +1,31 @@
+app:
+  secret_key: dev-secret-change-in-production
+  debug: true
+
+database:
+  url: postgresql+asyncpg://sat_exam:sat_exam@localhost:5432/sat_exam
+
+redis:
+  url: redis://localhost:6379/0
+
+auth:
+  access_token_expire_min: 15
+  refresh_token_expire_days: 7
+  bcrypt_rounds: 12
+
+upload:
+  max_file_size_mb: 25
+  storage_path: ./uploads
+
+exam:
+  timer_mode_default: strict
+  routing_threshold_default: 0.5
+
+practice:
+  default_weak_threshold: 0.60
+  default_plan_days: 28
+
+extraction:
+  llm_provider: openai
+  llm_model: gpt-4o
+  confidence_threshold: 0.7
