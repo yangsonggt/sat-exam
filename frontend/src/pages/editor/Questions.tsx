@@ -41,14 +41,22 @@ export default function EditorQuestions() {
   };
 
   const handlePublish = async (id: string) => {
-    await questionApi.publish(id);
-    load();
+    try {
+      await questionApi.publish(id);
+      load();
+    } catch (err: any) {
+      alert('Publish failed: ' + (err?.response?.data?.detail?.message || err.message));
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this question?')) return;
-    await questionApi.delete(id);
-    load();
+    try {
+      await questionApi.delete(id);
+      load();
+    } catch (err: any) {
+      alert('Delete failed: ' + (err?.response?.data?.detail?.message || err.message));
+    }
   };
 
   const handleBulkPublish = async () => {
