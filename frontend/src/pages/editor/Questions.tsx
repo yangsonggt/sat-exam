@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { questionApi } from '../../api';
 import type { Question } from '../../types';
 
 export default function EditorQuestions() {
+  const navigate = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -103,6 +105,7 @@ export default function EditorQuestions() {
         </select>
         <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Search stem..." className="border rounded px-3 py-1 w-48" />
         <button onClick={load} className="bg-gray-200 px-4 py-1 rounded text-sm">Refresh</button>
+        <button onClick={() => navigate('/editor/questions/new')} className="bg-blue-600 text-white px-4 py-1 rounded text-sm">+ Create</button>
         {selected.size > 0 && (
           <>
             <button onClick={handleBulkPublish} className="bg-green-600 text-white px-3 py-1 rounded text-sm">Publish ({selected.size})</button>

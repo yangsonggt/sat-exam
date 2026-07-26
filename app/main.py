@@ -2,6 +2,8 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.config import get_settings
 
@@ -52,6 +54,11 @@ def create_app() -> FastAPI:
     app.include_router(attempt_router)
     app.include_router(result_router)
     app.include_router(practice_router)
+
+    # Mount uploads directory for serving images
+    uploads_path = Path("uploads")
+    uploads_path.mkdir(exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     return app
 

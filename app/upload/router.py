@@ -1,6 +1,6 @@
 """Upload router: PDF upload, list, status, delete."""
 
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -80,3 +80,24 @@ async def delete_upload(
     """Delete an upload. Published questions are preserved."""
     await service.delete_upload(db, upload_id)
     return {"ok": True}
+
+
+@router.post("/images")
+async def upload_image(
+    file: UploadFile = File(...),
+    user: User = Depends(require_role("admin", "editor")),
+):
+    """Upload an image for use in question stems/options."""
+    import uuid
+    from pathlib import Path
+
+    ext = file.filename.split(".")[-1].lower() if file.filename else "png"
+    if ext not in ("png", "jpg", "jpeg", "gif", "svg", "webp"):
+        raise HTTPException(400, "Invalid image format")
+
+    name = f"{uuid.uuid4().hex}.{ext}"
+    uploads_dir = Path("uploads/images")
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    (uploads_dir / name).write_bytes(await file.read())
+
+    return {"url": f"/uploads/images/{name}"}
