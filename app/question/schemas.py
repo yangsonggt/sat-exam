@@ -37,7 +37,7 @@ class QuestionVersionResponse(BaseModel):
     version_no: int
     stem: str
     passage: Optional[str] = None
-    options: Optional[dict] = None
+    options: Optional[list[ChoiceSchema]] = None
     correct_answer: str
     explanation: Optional[str] = None
     created_at: datetime
