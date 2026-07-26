@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { questionApi } from '../../api';
 import type { Question } from '../../types';
+import KatexRenderer from '../../components/KatexRenderer';
 
 export default function EditorQuestions() {
   const navigate = useNavigate();
@@ -220,9 +221,13 @@ export default function EditorQuestions() {
                 <span>Status: {expandedQ.status}</span>
               </div>
               {expandedQ.current_version?.passage && (
-                <div className="bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap italic">{expandedQ.current_version.passage}</div>
+                <div className="bg-gray-50 p-3 rounded text-sm whitespace-pre-wrap italic">
+                  <KatexRenderer html={expandedQ.current_version.passage} />
+                </div>
               )}
-              <div className="text-base whitespace-pre-wrap leading-relaxed">{expandedQ.current_version?.stem || '[No stem]'}</div>
+              <div className="text-base leading-relaxed">
+                <KatexRenderer html={expandedQ.current_version?.stem} />
+              </div>
               {expandedQ.current_version?.options && (
                 <div className="space-y-1">
                   {expandedQ.current_version.options.map((opt: any) => (
@@ -230,7 +235,7 @@ export default function EditorQuestions() {
                       opt.label === expandedQ.current_version?.correct_answer ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
                     }`}>
                       <span className="font-bold mr-2">{opt.label}.</span>
-                      {opt.text}
+                      <KatexRenderer html={opt.text} className="inline" />
                       {opt.label === expandedQ.current_version?.correct_answer && (
                         <span className="ml-2 text-green-600 text-xs font-medium">✓ Correct</span>
                       )}
@@ -247,7 +252,7 @@ export default function EditorQuestions() {
               {expandedQ.current_version?.explanation && (
                 <div className="bg-blue-50 p-3 rounded text-sm">
                   <span className="font-medium block mb-1">Explanation:</span>
-                  {expandedQ.current_version.explanation}
+                  <KatexRenderer html={expandedQ.current_version.explanation} />
                 </div>
               )}
             </div>
