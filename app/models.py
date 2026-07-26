@@ -92,7 +92,7 @@ class Question(Base):
     type: Mapped[str] = mapped_column(String(20), nullable=False)  # multiple_choice, grid_in
     skill: Mapped[Optional[str]] = mapped_column(String(100))  # editor-assigned at review
     difficulty: Mapped[Optional[str]] = mapped_column(String(10))  # easy, medium, hard
-    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft, published, archived
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")  # draft, saved, reviewed, published, archived
     source_upload_id: Mapped[Optional[str]] = mapped_column(ForeignKey("uploads.id"))
     current_version_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False))
     extraction_confidence: Mapped[Optional[float]] = mapped_column(Float)
@@ -146,7 +146,7 @@ class Exam(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft, published
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")  # draft, saved, reviewed, published, archived
     routing_threshold_rw: Mapped[Optional[float]] = mapped_column(Float)
     routing_threshold_math: Mapped[Optional[float]] = mapped_column(Float)
     timer_mode: Mapped[str] = mapped_column(String(20), default="strict")  # strict, optional

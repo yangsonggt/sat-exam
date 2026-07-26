@@ -165,6 +165,21 @@ async def archive_question(db: AsyncSession, question_id: str) -> Question:
     return question
 
 
+async def update_question_status(db: AsyncSession, question_id: str, new_status: str) -> Question:
+    """Change question status with validation of allowed transitions."""
+    ALLOWED = {"draft", "saved", "reviewed", "published", "archived"}
+    if new_status not in ALLOWED:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_STATUS", "message": f"Status must be one of: {', '.join(sorted(ALLOWED))}"},
+        )
+    question = await get_question(db, question_id)
+    question.status = new_status
+    await db.commit()
+    await db.refresh(question)
+    return question
+
+
 async def delete_question(db: AsyncSession, question_id: str) -> None:
     """Delete a question. Blocked if referenced by any attempt."""
     question = await get_question(db, question_id)

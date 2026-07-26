@@ -88,6 +88,8 @@ export default function EditorQuestions() {
         <select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }} className="border rounded px-3 py-1">
           <option value="">All Status</option>
           <option value="draft">Draft</option>
+          <option value="saved">Saved</option>
+          <option value="reviewed">Reviewed</option>
           <option value="published">Published</option>
           <option value="archived">Archived</option>
         </select>

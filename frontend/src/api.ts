@@ -60,6 +60,8 @@ export const questionApi = {
   create: (data: Record<string, unknown>) => api.post('/questions', data),
   update: (id: string, data: Record<string, unknown>) => api.patch(`/questions/${id}`, data),
   publish: (id: string) => api.post(`/questions/${id}/publish`),
+  setStatus: (id: string, status: string) =>
+    api.patch(`/questions/${id}/status?new_status=${status}`),
   vocabulary: () => api.get('/questions/vocabulary'),
   delete: (id: string) => api.delete(`/questions/${id}`),
 };

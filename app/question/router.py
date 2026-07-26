@@ -162,6 +162,17 @@ async def archive_question(
     return await service.archive_question(db, question_id)
 
 
+@router.patch("/{question_id}/status")
+async def update_status(
+    question_id: str,
+    new_status: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin", "editor")),
+):
+    """Change question status: draft, saved, reviewed, published."""
+    return await service.update_question_status(db, question_id, new_status)
+
+
 @router.post("/bulk/status")
 async def bulk_update_status(
     body: BulkStatusRequest,

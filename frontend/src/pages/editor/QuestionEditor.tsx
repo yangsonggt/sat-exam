@@ -116,6 +116,7 @@ export default function QuestionEditor() {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const [status, setStatusState] = useState('draft');
 
   useEffect(() => {
     if (isNew) return;
@@ -129,6 +130,7 @@ export default function QuestionEditor() {
       setAnswer(v.correct_answer || '');
       setSkill(data.skill || '');
       setDifficulty(data.difficulty || 'medium');
+      setStatusState(data.status || 'draft');
       if (v.options && Array.isArray(v.options)) setOptions(v.options);
     }).catch((err) => {
       console.error('Failed to load question:', err);
@@ -157,6 +159,24 @@ export default function QuestionEditor() {
     }
   };
 
+  const handleSetStatus = async (newStatus: string) => {
+    if (isNew) return;
+    try {
+      await questionApi.setStatus(id!, newStatus);
+      setStatusState(newStatus);
+    } catch (err: any) {
+      alert('Failed to change status: ' + (err?.response?.data?.detail?.message || 'Unknown error'));
+    }
+  };
+
+  const statusColors: Record<string, string> = {
+    draft: 'bg-gray-100 text-gray-700',
+    saved: 'bg-blue-100 text-blue-700',
+    reviewed: 'bg-yellow-100 text-yellow-700',
+    published: 'bg-green-100 text-green-800',
+    archived: 'bg-red-100 text-red-600',
+  };
+
   const previewWidth = previewCollapsed ? 'w-0' : 'w-96';
 
   return (
@@ -166,7 +186,14 @@ export default function QuestionEditor() {
         <div className="max-w-4xl space-y-4">
           {/* Top bar */}
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">{isNew ? 'Create Question' : 'Edit Question'}</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold">{isNew ? 'Create Question' : 'Edit Question'}</h2>
+              {!isNew && (
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status] || statusColors.draft}`}>
+                  {status}
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => setShowPreview(!showPreview)}
                 className={`px-3 py-1 rounded text-xs font-medium ${showPreview ? 'bg-purple-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>
@@ -259,6 +286,16 @@ export default function QuestionEditor() {
 
             <div className="flex justify-end gap-2 pt-4 border-t">
               <button onClick={() => navigate('/editor/questions')} className="px-4 py-2 rounded text-sm bg-gray-200 hover:bg-gray-300">Cancel</button>
+              {!isNew && (
+                <div className="flex gap-1 mr-auto">
+                  {['draft', 'saved', 'reviewed', 'published'].filter(s => s !== status).map(s => (
+                    <button key={s} onClick={() => handleSetStatus(s)}
+                      className={`px-2 py-1 rounded text-xs font-medium ${statusColors[s]} hover:opacity-80`}>
+                      → {s}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button onClick={handleSave} disabled={saving || !stem.trim()} className="px-6 py-2 rounded text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-medium">
                 {saving ? 'Saving...' : 'Save Question'}
               </button>
