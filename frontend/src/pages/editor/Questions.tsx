@@ -14,8 +14,6 @@ export default function EditorQuestions() {
   const [search, setSearch] = useState('');
   const [vocabulary, setVocabulary] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const load = async () => {
@@ -39,14 +37,7 @@ export default function EditorQuestions() {
   useEffect(() => { loadVocab(); }, []);
 
   const handleEdit = (q: Question) => {
-    setEditing(q.id);
-    setEditData({ skill: q.skill || '', difficulty: q.difficulty || 'medium' });
-  };
-
-  const handleSave = async (id: string) => {
-    await questionApi.update(id, editData);
-    setEditing(null);
-    load();
+    navigate(`/editor/questions/${q.id}`);
   };
 
   const handlePublish = async (id: string) => {
@@ -139,27 +130,12 @@ export default function EditorQuestions() {
                 <td className="p-2 font-mono text-xs">{q.section === 'reading_writing' ? 'R&W' : 'M'}</td>
                 <td className="p-2 text-xs">{q.type === 'multiple_choice' ? 'MCQ' : 'Grid'}</td>
                 <td className="p-2">
-                  {editing === q.id ? (
-                    <select value={editData.skill || ''} onChange={e => setEditData({ ...editData, skill: e.target.value })} className="border rounded px-1 py-0.5 text-xs w-32">
-                      <option value="">—</option>
-                      {vocabulary.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  ) : (
-                    <span className="text-xs truncate block max-w-32" title={q.skill || ''}>{q.skill ? q.skill.split('.').slice(-1)[0]?.replace(/_/g, ' ') : '—'}</span>
-                  )}
+                  <span className="text-xs truncate block max-w-32" title={q.skill || ''}>{q.skill ? q.skill.split('.').slice(-1)[0]?.replace(/_/g, ' ') : '—'}</span>
                 </td>
                 <td className="p-2">
-                  {editing === q.id ? (
-                    <select value={editData.difficulty || ''} onChange={e => setEditData({ ...editData, difficulty: e.target.value })} className="border rounded px-1 py-0.5 text-xs">
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                    </select>
-                  ) : (
-                    <span className={`text-xs font-medium ${q.difficulty === 'easy' ? 'text-green-600' : q.difficulty === 'hard' ? 'text-red-600' : 'text-orange-500'}`}>
-                      {q.difficulty || '—'}
-                    </span>
-                  )}
+                  <span className={`text-xs font-medium ${q.difficulty === 'easy' ? 'text-green-600' : q.difficulty === 'hard' ? 'text-red-600' : 'text-orange-500'}`}>
+                    {q.difficulty || '—'}
+                  </span>
                 </td>
                 <td className="p-2">
                   <button onClick={() => setExpanded(expanded === q.id ? null : q.id)} className="text-left text-xs text-gray-700 hover:text-blue-600 max-w-64 truncate block">
@@ -173,20 +149,11 @@ export default function EditorQuestions() {
                 </td>
                 <td className="p-2">
                   <div className="flex gap-1">
-                    {editing === q.id ? (
-                      <>
-                        <button onClick={() => handleSave(q.id)} className="text-green-600 hover:underline text-xs">Save</button>
-                        <button onClick={() => setEditing(null)} className="text-gray-400 hover:underline text-xs">Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => handleEdit(q)} className="text-blue-600 hover:underline text-xs">Edit</button>
-                        {q.status !== 'published' && (
-                          <button onClick={() => handlePublish(q.id)} className="text-green-600 hover:underline text-xs">Pub</button>
-                        )}
-                        <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:underline text-xs">Del</button>
-                      </>
+                    <button onClick={() => navigate(`/editor/questions/${q.id}`)} className="text-blue-600 hover:underline text-xs">Edit</button>
+                    {q.status !== 'published' && (
+                      <button onClick={() => handlePublish(q.id)} className="text-green-600 hover:underline text-xs">Pub</button>
                     )}
+                    <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:underline text-xs">Del</button>
                   </div>
                 </td>
               </tr>
