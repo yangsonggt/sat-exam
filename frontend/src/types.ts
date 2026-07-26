@@ -3,6 +3,8 @@ export interface User {
   email: string;
   role: 'admin' | 'editor' | 'student';
   display_name: string | null;
+  grade: string | null;
+  school: string | null;
   is_active: boolean;
   created_at: string;
 }

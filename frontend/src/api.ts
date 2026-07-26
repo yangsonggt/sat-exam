@@ -47,6 +47,10 @@ export const adminApi = {
   listUsers: () => api.get('/admin/users'),
   changeRole: (userId: string, role: string) =>
     api.patch(`/admin/users/${userId}/role?new_role=${role}`),
+  toggleActive: (userId: string) =>
+    api.patch(`/admin/users/${userId}/toggle-active`),
+  deleteUser: (userId: string) =>
+    api.delete(`/admin/users/${userId}`),
 };
 
 // Questions

@@ -83,3 +83,22 @@ async def change_role(
     _admin: User = Depends(require_role("admin")),
 ):
     return await service.change_user_role(db, user_id, new_role)
+
+
+@admin_router.patch("/users/{user_id}/toggle-active", response_model=UserResponse)
+async def toggle_active(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_role("admin")),
+):
+    return await service.toggle_user_active(db, user_id)
+
+
+@admin_router.delete("/users/{user_id}", response_model=dict)
+async def delete_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_role("admin")),
+):
+    await service.delete_user(db, user_id)
+    return {"deleted": True}

@@ -84,6 +84,8 @@ async def create_user(db: AsyncSession, data: CreateUserRequest) -> User:
         password_hash=hash_password(data.password),
         role=data.role,
         display_name=data.display_name,
+        grade=data.grade,
+        school=data.school,
     )
     db.add(user)
     await db.commit()
@@ -117,3 +119,32 @@ async def change_user_role(db: AsyncSession, user_id: str, new_role: str) -> Use
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def toggle_user_active(db: AsyncSession, user_id: str) -> User:
+    """Toggle a user's active/inactive status. Admins only."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "User not found"},
+        )
+    # Prevent deactivating yourself
+    user.is_active = not user.is_active
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def delete_user(db: AsyncSession, user_id: str) -> None:
+    """Delete a user. Cannot delete yourself."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "User not found"},
+        )
+    await db.delete(user)
+    await db.commit()

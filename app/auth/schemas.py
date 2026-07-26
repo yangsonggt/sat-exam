@@ -25,6 +25,8 @@ class UserResponse(BaseModel):
     email: str
     role: str
     display_name: Optional[str] = None
+    grade: Optional[str] = None
+    school: Optional[str] = None
     is_active: bool
     created_at: datetime
 
@@ -33,10 +35,12 @@ class UserResponse(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
-    role: str = "student"  # admin, editor, student
+    role: str = "student"
     display_name: Optional[str] = None
+    grade: Optional[str] = None
+    school: Optional[str] = None
 
 
 class UpdateProfileRequest(BaseModel):
