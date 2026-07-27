@@ -1,6 +1,6 @@
 """Upload router: PDF upload, list, status, delete."""
 
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
 
@@ -108,15 +108,15 @@ async def upload_image(
 _parse_jobs: dict[str, dict] = {}
 
 
-@router.post("/parse")
+@router.post("/parse", response_model=None)
 async def upload_and_parse_pdf(
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = Depends(),
     user: User = Depends(require_role("admin", "editor")),
 ):
     """Upload a PDF, save it, start background OCR parsing. Returns job ID for polling."""
     import tempfile
     import uuid
+    import threading
     
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files are accepted")
@@ -129,11 +129,11 @@ async def upload_and_parse_pdf(
     tmp = Path(tempfile.gettempdir()) / f"sat_upload_{job_id}.{ext}"
     tmp.write_bytes(await file.read())
 
-    background_tasks.add_task(_run_parse_job, job_id, str(tmp))
+    threading.Thread(target=_run_parse_job_sync, args=(job_id, str(tmp)), daemon=True).start()
     return {"job_id": job_id, "filename": file.filename, "status": "saving"}
 
 
-@router.get("/parse/{job_id}")
+@router.get("/parse/{job_id}", response_model=None)
 async def get_parse_status(job_id: str):
     """Poll parse job status. Returns result when complete."""
     job = _parse_jobs.get(job_id)
@@ -142,7 +142,14 @@ async def get_parse_status(job_id: str):
     return job
 
 
-async def _run_parse_job(job_id: str, tmp_path: str):
+async def _run_parse_job_sync(job_id: str, tmp_path: str):
+    """Background task: OCR the PDF and import questions."""
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(_run_parse_job_async(job_id, tmp_path))
+
+async def _run_parse_job_async(job_id: str, tmp_path: str):
     """Background task: OCR the PDF and import questions."""
     try:
         _parse_jobs[job_id]["status"] = "parsing"
