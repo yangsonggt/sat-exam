@@ -133,6 +133,18 @@ async def upload_and_parse_pdf(
     return {"job_id": job_id, "filename": file.filename, "status": "saving"}
 
 
+@router.get("/parse")
+async def list_parse_jobs():
+    """List all parse jobs (active and recent)."""
+    return {
+        "jobs": [
+            {"job_id": jid, **job}
+            for jid, job in _parse_jobs.items()
+        ],
+        "total": len(_parse_jobs),
+    }
+
+
 @router.get("/parse/{job_id}", response_model=None)
 async def get_parse_status(job_id: str):
     """Poll parse job status. Returns result when complete."""

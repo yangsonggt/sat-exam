@@ -1,4 +1,4 @@
-import { useState, useCallback, type DragEvent } from 'react';
+import { useState, useCallback, useEffect, type DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -42,6 +42,33 @@ export default function UploadQuestions() {
       });
     }
   }, []);
+
+  // Load existing jobs on mount
+  const loadJobs = useCallback(async () => {
+    const token = localStorage.getItem('access_token');
+    try {
+      const { data } = await axios.get('/api/v1/uploads/parse', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const jobs: UploadResult[] = (data.jobs || []).map((j: any) => ({
+        job_id: j.job_id,
+        filename: j.filename || 'Unknown',
+        status: j.status,
+        result: j.result,
+        error: j.error,
+      }));
+      setResults(jobs);
+      
+      // Poll active jobs
+      jobs.forEach((j, i) => {
+        if (!['done', 'error'].includes(j.status) && j.job_id) {
+          pollJob(j.job_id, i);
+        }
+      });
+    } catch {}
+  }, [pollJob]);
+
+  useEffect(() => { loadJobs(); }, [loadJobs]);
 
   const processFile = async (file: File, idx: number) => {
     const form = new FormData();
