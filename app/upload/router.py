@@ -35,6 +35,56 @@ async def list_uploads(
     return UploadListResponse(items=items, total=total, offset=offset, limit=limit)
 
 
+# ── Parse job endpoints (must come before /{upload_id} wildcard) ──
+
+_parse_jobs: dict[str, dict] = {}
+
+
+@router.post("/parse", response_model=None)
+async def upload_and_parse_pdf(
+    file: UploadFile = File(...),
+    user: User = Depends(require_role("admin", "editor")),
+):
+    """Upload a PDF, save it, start background OCR parsing. Returns job ID for polling."""
+    import tempfile
+    import uuid
+    import threading
+    
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Only PDF files are accepted")
+
+    job_id = uuid.uuid4().hex
+    _parse_jobs[job_id] = {"status": "saving", "filename": file.filename, "result": None}
+
+    ext = file.filename.rsplit(".", 1)[-1]
+    tmp = Path(tempfile.gettempdir()) / f"sat_upload_{job_id}.{ext}"
+    tmp.write_bytes(await file.read())
+
+    threading.Thread(target=_run_parse_job_sync, args=(job_id, str(tmp)), daemon=True).start()
+    return {"job_id": job_id, "filename": file.filename, "status": "saving"}
+
+
+@router.get("/parse")
+async def list_parse_jobs():
+    """List all parse jobs (active and recent)."""
+    return {
+        "jobs": [{"job_id": jid, **job} for jid, job in _parse_jobs.items()],
+        "total": len(_parse_jobs),
+    }
+
+
+@router.get("/parse/{job_id}", response_model=None)
+async def get_parse_status(job_id: str):
+    """Poll parse job status. Returns result when complete."""
+    job = _parse_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return job
+
+
+# ── Upload detail routes ──
+
+
 @router.get("/{upload_id}", response_model=UploadResponse)
 async def get_upload(
     upload_id: str,
@@ -104,69 +154,22 @@ async def upload_image(
     return {"url": f"/uploads/images/{name}"}
 
 
-# In-memory job store for parse tasks (production: use Redis)
-_parse_jobs: dict[str, dict] = {}
+# ── Background parse helpers ──
 
 
-@router.post("/parse", response_model=None)
-async def upload_and_parse_pdf(
-    file: UploadFile = File(...),
-    user: User = Depends(require_role("admin", "editor")),
-):
-    """Upload a PDF, save it, start background OCR parsing. Returns job ID for polling."""
-    import tempfile
-    import uuid
-    import threading
-    
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(400, "Only PDF files are accepted")
-
-    job_id = uuid.uuid4().hex
-    _parse_jobs[job_id] = {"status": "saving", "filename": file.filename, "result": None}
-
-    # Save to disk for background processing
-    ext = file.filename.rsplit(".", 1)[-1]
-    tmp = Path(tempfile.gettempdir()) / f"sat_upload_{job_id}.{ext}"
-    tmp.write_bytes(await file.read())
-
-    threading.Thread(target=_run_parse_job_sync, args=(job_id, str(tmp)), daemon=True).start()
-    return {"job_id": job_id, "filename": file.filename, "status": "saving"}
-
-
-@router.get("/parse")
-async def list_parse_jobs():
-    """List all parse jobs (active and recent)."""
-    return {
-        "jobs": [
-            {"job_id": jid, **job}
-            for jid, job in _parse_jobs.items()
-        ],
-        "total": len(_parse_jobs),
-    }
-
-
-@router.get("/parse/{job_id}", response_model=None)
-async def get_parse_status(job_id: str):
-    """Poll parse job status. Returns result when complete."""
-    job = _parse_jobs.get(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    return job
-
-
-async def _run_parse_job_sync(job_id: str, tmp_path: str):
-    """Background task: OCR the PDF and import questions."""
+def _run_parse_job_sync(job_id: str, tmp_path: str):
+    """Run the async parse job in a new event loop (thread-safe wrapper)."""
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(_run_parse_job_async(job_id, tmp_path))
+
 
 async def _run_parse_job_async(job_id: str, tmp_path: str):
     """Background task: OCR the PDF and import questions."""
     try:
         _parse_jobs[job_id]["status"] = "parsing"
         
-        # Try v2 parser first, fall back to v1
         parser = None
         try:
             from ocr_parser_v2 import HybridOCRParser
@@ -181,7 +184,6 @@ async def _run_parse_job_async(job_id: str, tmp_path: str):
         
         _parse_jobs[job_id]["status"] = "importing"
         
-        # Import into DB
         created = 0
         skipped = 0
         db_url = os.environ.get("DATABASE_URL", "")
