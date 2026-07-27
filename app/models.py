@@ -80,6 +80,23 @@ class ParseJob(Base):
     upload = relationship("Upload", back_populates="parse_jobs")
 
 
+class ParseActivity(Base):
+    """Persistent record of background OCR parse jobs (survives server restart)."""
+    __tablename__ = "parse_activities"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
+    job_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    filename: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(20), default="saving")  # saving, parsing, importing, done, error
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    questions_parsed: Mapped[Optional[int]] = mapped_column(Integer)
+    questions_imported: Mapped[Optional[int]] = mapped_column(Integer)
+    questions_skipped: Mapped[Optional[int]] = mapped_column(Integer)
+    answers_matched: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=utcnow)
+
+
 # ═══════════════════════════════════════════════════════════
 # Questions (with versioning)
 # ═══════════════════════════════════════════════════════════

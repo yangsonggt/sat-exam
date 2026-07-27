@@ -57,6 +57,10 @@ async def upload_and_parse_pdf(
     job_id = uuid.uuid4().hex
     _parse_jobs[job_id] = {"status": "saving", "filename": file.filename, "result": None}
 
+    # Also persist to DB
+    import asyncio as _asyncio
+    _asyncio.create_task(_save_activity(job_id, filename=file.filename, status="saving"))
+
     ext = file.filename.rsplit(".", 1)[-1]
     tmp = Path(tempfile.gettempdir()) / f"sat_upload_{job_id}.{ext}"
     tmp.write_bytes(await file.read())
@@ -67,11 +71,36 @@ async def upload_and_parse_pdf(
 
 @router.get("/parse")
 async def list_parse_jobs():
-    """List all parse jobs (active and recent)."""
-    return {
-        "jobs": [{"job_id": jid, **job} for jid, job in _parse_jobs.items()],
-        "total": len(_parse_jobs),
-    }
+    """List all parse jobs (from memory + DB history)."""
+    jobs = [{"job_id": jid, **job} for jid, job in _parse_jobs.items()]
+    
+    # Also load from DB for jobs that survived restart
+    try:
+        from app.database import AsyncSessionLocal
+        from app.models import ParseActivity
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            r = await db.execute(select(ParseActivity).order_by(ParseActivity.created_at.desc()))
+            for row in r.scalars().all():
+                # Don't duplicate in-memory jobs
+                if any(j["job_id"] == row.job_id for j in jobs):
+                    continue
+                jobs.append({
+                    "job_id": row.job_id,
+                    "filename": row.filename,
+                    "status": row.status,
+                    "error": row.error,
+                    "result": {
+                        "questions_parsed": row.questions_parsed or 0,
+                        "answers_matched": row.answers_matched or 0,
+                        "questions_imported": row.questions_imported or 0,
+                        "questions_skipped": row.questions_skipped or 0,
+                    } if row.status in ("done", "error") else None,
+                })
+    except Exception:
+        pass
+
+    return {"jobs": jobs, "total": len(jobs)}
 
 
 @router.get("/parse/{job_id}", response_model=None)
@@ -158,6 +187,25 @@ async def upload_image(
 # ── Background parse helpers ──
 
 
+async def _save_activity(job_id: str, **kwargs):
+    """Persist job status to DB (non-blocking if DB is unavailable)."""
+    try:
+        from app.database import AsyncSessionLocal
+        from app.models import ParseActivity
+        from sqlalchemy import select, update
+        async with AsyncSessionLocal() as db:
+            r = await db.execute(select(ParseActivity).where(ParseActivity.job_id == job_id))
+            existing = r.scalar_one_or_none()
+            if existing:
+                for k, v in kwargs.items():
+                    setattr(existing, k, v)
+            else:
+                db.add(ParseActivity(job_id=job_id, **kwargs))
+            await db.commit()
+    except Exception:
+        pass
+
+
 def _run_parse_job_sync(job_id: str, tmp_path: str):
     """Run the async parse job in a new event loop (thread-safe wrapper)."""
     import asyncio
@@ -170,6 +218,7 @@ async def _run_parse_job_async(job_id: str, tmp_path: str):
     """Background task: OCR the PDF and import questions."""
     try:
         _parse_jobs[job_id]["status"] = "parsing"
+        await _save_activity(job_id, status="parsing")
         
         parser = None
         try:
@@ -184,6 +233,7 @@ async def _run_parse_job_async(job_id: str, tmp_path: str):
         stats = result.get("stats", {})
         
         _parse_jobs[job_id]["status"] = "importing"
+        await _save_activity(job_id, status="importing")
         
         created = 0
         skipped = 0
@@ -243,12 +293,17 @@ async def _run_parse_job_async(job_id: str, tmp_path: str):
                 "questions_skipped": skipped,
             }
         }
+        await _save_activity(job_id, status="done",
+            questions_parsed=stats.get("total_questions", len(questions)),
+            questions_imported=created, questions_skipped=skipped,
+            answers_matched=stats.get("matched_answers", 0))
     except Exception as e:
         _parse_jobs[job_id] = {
             "status": "error",
             "filename": _parse_jobs[job_id]["filename"],
             "error": str(e),
         }
+        await _save_activity(job_id, status="error", error=str(e))
     finally:
         try:
             Path(tmp_path).unlink()
