@@ -44,9 +44,10 @@ _parse_jobs: dict[str, dict] = {}
 @router.post("/parse", response_model=None)
 async def upload_and_parse_pdf(
     file: UploadFile = File(...),
+    answer_file: UploadFile | None = File(None),
     user: User = Depends(require_role("admin", "editor")),
 ):
-    """Upload a PDF, save it, start background OCR parsing. Returns job ID for polling."""
+    """Upload a question PDF + optional answer PDF, start background OCR parsing."""
     import tempfile
     import uuid
     import threading
@@ -55,18 +56,30 @@ async def upload_and_parse_pdf(
         raise HTTPException(400, "Only PDF files are accepted")
 
     job_id = uuid.uuid4().hex
-    _parse_jobs[job_id] = {"status": "saving", "filename": file.filename, "result": None}
+    display_name = file.filename
+    if answer_file and answer_file.filename:
+        display_name += " + answers"
+
+    _parse_jobs[job_id] = {"status": "saving", "filename": display_name, "result": None}
+
+    # Save question PDF
+    ext = file.filename.rsplit(".", 1)[-1]
+    tmp_q = Path(tempfile.gettempdir()) / f"sat_q_{job_id}.{ext}"
+    tmp_q.write_bytes(await file.read())
+
+    # Save answer PDF if provided
+    tmp_a = None
+    if answer_file and answer_file.filename and answer_file.filename.lower().endswith(".pdf"):
+        ext_a = answer_file.filename.rsplit(".", 1)[-1]
+        tmp_a = Path(tempfile.gettempdir()) / f"sat_a_{job_id}.{ext_a}"
+        tmp_a.write_bytes(await answer_file.read())
 
     # Also persist to DB
     import asyncio as _asyncio
-    _asyncio.create_task(_save_activity(job_id, filename=file.filename, status="saving"))
+    _asyncio.create_task(_save_activity(job_id, filename=display_name, status="saving"))
 
-    ext = file.filename.rsplit(".", 1)[-1]
-    tmp = Path(tempfile.gettempdir()) / f"sat_upload_{job_id}.{ext}"
-    tmp.write_bytes(await file.read())
-
-    threading.Thread(target=_run_parse_job_sync, args=(job_id, str(tmp)), daemon=True).start()
-    return {"job_id": job_id, "filename": file.filename, "status": "saving"}
+    threading.Thread(target=_run_parse_job_sync, args=(job_id, str(tmp_q), str(tmp_a) if tmp_a else None), daemon=True).start()
+    return {"job_id": job_id, "filename": display_name, "status": "saving"}
 
 
 @router.get("/parse")
@@ -206,15 +219,15 @@ async def _save_activity(job_id: str, **kwargs):
         pass
 
 
-def _run_parse_job_sync(job_id: str, tmp_path: str):
+def _run_parse_job_sync(job_id: str, q_path: str, a_path: str | None = None):
     """Run the async parse job in a new event loop (thread-safe wrapper)."""
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(_run_parse_job_async(job_id, tmp_path))
+    loop.run_until_complete(_run_parse_job_async(job_id, q_path, a_path))
 
 
-async def _run_parse_job_async(job_id: str, tmp_path: str):
+async def _run_parse_job_async(job_id: str, q_path: str, a_path: str | None = None):
     """Background task: OCR the PDF and import questions."""
     try:
         _parse_jobs[job_id]["status"] = "parsing"
@@ -228,7 +241,7 @@ async def _run_parse_job_async(job_id: str, tmp_path: str):
             from ocr_parser import OCRParser as OCP
             parser = OCP(dpi=200)
 
-        result = parser.parse_full_document(tmp_path, tmp_path)
+        result = parser.parse_full_document(q_path, a_path or q_path)
         questions = result.get("questions", [])
         stats = result.get("stats", {})
         
@@ -306,6 +319,8 @@ async def _run_parse_job_async(job_id: str, tmp_path: str):
         await _save_activity(job_id, status="error", error=str(e))
     finally:
         try:
-            Path(tmp_path).unlink()
+            Path(q_path).unlink()
+            if a_path:
+                Path(a_path).unlink()
         except Exception:
             pass

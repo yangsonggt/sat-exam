@@ -22,6 +22,7 @@ export default function UploadQuestions() {
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [answerFile, setAnswerFile] = useState<File | null>(null);
   const notifiedJobs = useState<Set<string>>(new Set())[0];
 
   const pollJob = useCallback(async (jobId: string, idx: number) => {
@@ -81,9 +82,10 @@ export default function UploadQuestions() {
 
   useEffect(() => { loadJobs(); }, [loadJobs]);
 
-  const processFile = async (file: File, idx: number) => {
+  const processFile = async (file: File, idx: number, answerFile?: File) => {
     const form = new FormData();
     form.append('file', file);
+    if (answerFile) form.append('answer_file', answerFile);
     const token = localStorage.getItem('access_token');
     try {
       const { data } = await axios.post('/api/v1/uploads/parse', form, {
@@ -110,9 +112,9 @@ export default function UploadQuestions() {
     const fileArray = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
     const initial: UploadResult[] = fileArray.map(f => ({ filename: f.name, status: 'uploading' }));
     setResults(initial);
-    fileArray.forEach((file, i) => processFile(file, i));
+    fileArray.forEach((file, i) => processFile(file, i, answerFile || undefined));
     setUploading(false);
-  }, [pollJob]);
+  }, [pollJob, answerFile]);
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -147,6 +149,22 @@ export default function UploadQuestions() {
             className="hidden" />
         </label>
         <p className="text-xs text-gray-400 mt-3">Supports multiple files. Each PDF is OCR'd and imported as drafts.</p>
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <p className="text-xs text-gray-500 mb-2">Optional: Upload matching answer key PDF</p>
+          <label className="text-xs bg-gray-100 px-3 py-1.5 rounded cursor-pointer hover:bg-gray-200 inline-block">
+            Choose Answer Key
+            <input type="file" accept=".pdf" className="hidden"
+              onChange={e => {
+                if (e.target.files?.length) {
+                  const af = e.target.files[0];
+                  setAnswerFile(af);
+                }
+              }} />
+          </label>
+          {answerFile && (
+            <span className="ml-2 text-xs text-green-600">✓ {answerFile.name}</span>
+          )}
+        </div>
       </div>
 
       {/* ── Summary card ── */}
