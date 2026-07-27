@@ -11,6 +11,7 @@ import EditorExams from './pages/editor/Exams';
 import EditorQuestionNew from './pages/editor/QuestionEditor';
 import EditorQuestionEdit from './pages/editor/QuestionEditor';
 import EditorUpload from './pages/editor/UploadQuestions';
+import EditorParseJobs from './pages/editor/ParseJobs';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentExams from './pages/student/Exams';
 import StudentExamTake from './pages/student/ExamTake';
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/editor/questions/new" element={<ProtectedRoute roles={['admin', 'editor']}><EditorQuestionNew /></ProtectedRoute>} />
             <Route path="/editor/questions/:id" element={<ProtectedRoute roles={['admin', 'editor']}><EditorQuestionEdit /></ProtectedRoute>} />
             <Route path="/editor/upload" element={<ProtectedRoute roles={['admin', 'editor']}><EditorUpload /></ProtectedRoute>} />
+            <Route path="/editor/jobs" element={<ProtectedRoute roles={['admin', 'editor']}><EditorParseJobs /></ProtectedRoute>} />
             <Route path="/editor/exams" element={<ProtectedRoute roles={['admin', 'editor']}><EditorExams /></ProtectedRoute>} />
             <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentDashboard /></ProtectedRoute>} />
             <Route path="/student/exams" element={<ProtectedRoute roles={['student']}><StudentExams /></ProtectedRoute>} />
