@@ -23,14 +23,27 @@ from sqlalchemy import select
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from ocr_parser import OCRParser
 
+# Optional v2 hybrid parser (Pix2Text math + Tesseract text)
+try:
+    from ocr_parser_v2 import HybridOCRParser
+    HAS_V2 = True
+except ImportError:
+    HAS_V2 = False
+
 
 async def import_questions(q_pdf: str, a_pdf: str, uploader_email: str = "admin@sat-exam.com",
-                           fix_math: bool = False):
+                           fix_math: bool = False, use_v2: bool = False):
     """Parse PDFs and import questions into the database."""
     
     # 1. Parse PDFs
     print(f"Parsing {Path(q_pdf).name}...")
-    parser = OCRParser(dpi=200)
+    if use_v2 and HAS_V2:
+        print("  Using hybrid parser (Pix2Text math + Tesseract text)")
+        parser = HybridOCRParser(dpi=300)
+    else:
+        if use_v2 and not HAS_V2:
+            print("  WARNING: v2 parser not available (pix2text not installed), falling back to v1")
+        parser = OCRParser(dpi=200)
     result = parser.parse_full_document(q_pdf, a_pdf)
 
     stats = result["stats"]
@@ -147,8 +160,9 @@ def main():
     q_pdf = sys.argv[1]
     a_pdf = sys.argv[2]
     fix_math = "--fix-math" in sys.argv
+    use_v2 = "--v2" in sys.argv
 
-    asyncio.run(import_questions(q_pdf, a_pdf, fix_math=fix_math))
+    asyncio.run(import_questions(q_pdf, a_pdf, fix_math=fix_math, use_v2=use_v2))
 
 
 if __name__ == "__main__":
