@@ -1,13 +1,17 @@
-import { useState, useCallback, DragEvent } from 'react';
+import { useState, useCallback, type DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 interface UploadResult {
+  job_id?: string;
   filename: string;
-  questions_parsed: number;
-  answers_matched: number;
-  questions_imported: number;
-  questions_skipped: number;
+  status: string;
+  result?: {
+    questions_parsed: number;
+    answers_matched: number;
+    questions_imported: number;
+    questions_skipped: number;
+  };
   error?: string;
 }
 
@@ -17,15 +21,49 @@ export default function UploadQuestions() {
   const [results, setResults] = useState<UploadResult[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
-  const processFile = async (file: File) => {
+  const pollJob = useCallback(async (jobId: string, idx: number) => {
+    const token = localStorage.getItem('access_token');
+    try {
+      const { data } = await axios.get(`/api/v1/uploads/parse/${jobId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setResults(prev => {
+        const next = [...prev];
+        next[idx] = { job_id: jobId, filename: data.filename, status: data.status, result: data.result, error: data.error };
+        return next;
+      });
+      if (data.status === 'done' || data.status === 'error') return;
+      setTimeout(() => pollJob(jobId, idx), 2000);
+    } catch {
+      setResults(prev => {
+        const next = [...prev];
+        next[idx] = { ...next[idx], status: 'error', error: 'Poll failed' };
+        return next;
+      });
+    }
+  }, []);
+
+  const processFile = async (file: File, idx: number) => {
     const form = new FormData();
     form.append('file', file);
     const token = localStorage.getItem('access_token');
-    const { data } = await axios.post('/api/v1/uploads/parse', form, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-      timeout: 600000, // 10 min for large PDFs
-    });
-    return { filename: file.name, ...data } as UploadResult;
+    try {
+      const { data } = await axios.post('/api/v1/uploads/parse', form, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+      });
+      setResults(prev => {
+        const next = [...prev];
+        next[idx] = { job_id: data.job_id, filename: file.name, status: data.status };
+        return next;
+      });
+      pollJob(data.job_id, idx);
+    } catch (err: any) {
+      setResults(prev => {
+        const next = [...prev];
+        next[idx] = { filename: file.name, status: 'error', error: err?.response?.data?.detail?.message || err?.message || 'Upload failed' };
+        return next;
+      });
+    }
   };
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
@@ -33,32 +71,25 @@ export default function UploadQuestions() {
     setResults([]);
     const fileArray = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
 
-    for (let i = 0; i < fileArray.length; i++) {
-      setResults(prev => [...prev, { filename: fileArray[i].name, questions_parsed: 0, answers_matched: 0, questions_imported: 0, questions_skipped: 0, error: 'Processing...' }]);
-    }
+    // Initialize all slots
+    const initial: UploadResult[] = fileArray.map(f => ({
+      filename: f.name, status: 'uploading',
+    }));
+    setResults(initial);
 
-    const newResults: UploadResult[] = [];
-    for (const file of fileArray) {
-      try {
-        const result = await processFile(file);
-        newResults.push(result);
-      } catch (err: any) {
-        newResults.push({
-          filename: file.name,
-          questions_parsed: 0, answers_matched: 0, questions_imported: 0, questions_skipped: 0,
-          error: err?.response?.data?.detail?.message || err?.message || 'Upload failed',
-        });
-      }
-      setResults([...newResults]);
-    }
+    // Start all uploads in parallel
+    fileArray.forEach((file, i) => processFile(file, i));
+
     setUploading(false);
-  }, []);
+  }, [pollJob]);
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   };
+
+  const allDone = results.length > 0 && results.every(r => r.status === 'done' || r.status === 'error');
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -87,47 +118,42 @@ export default function UploadQuestions() {
         <p className="text-xs text-gray-400 mt-3">Supports multiple files. Each PDF is OCR'd and imported as drafts.</p>
       </div>
 
-      {uploading && (
-        <div className="text-center py-4">
-          <div className="animate-spin inline-block w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full mr-2" />
-          <span className="text-sm text-gray-500">Processing {results.length} file(s)...</span>
-        </div>
-      )}
-
       {results.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left p-3">File</th>
+                <th className="text-center p-3">Status</th>
                 <th className="text-right p-3">Parsed</th>
-                <th className="text-right p-3">Matched</th>
                 <th className="text-right p-3">Imported</th>
-                <th className="text-right p-3">Skipped</th>
               </tr>
             </thead>
             <tbody>
-              {results.map((r, i) => (
-                <tr key={i} className={`border-t ${r.error ? 'bg-red-50' : ''}`}>
-                  <td className="p-3">
-                    <span className={r.error ? 'text-red-600' : ''}>{r.filename}</span>
-                    {r.error && !r.error.startsWith('Processing') && (
-                      <span className="block text-xs text-red-500 mt-0.5">{r.error}</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right">{r.questions_parsed}</td>
-                  <td className="p-3 text-right">{r.answers_matched}</td>
-                  <td className="p-3 text-right font-medium text-green-700">{r.questions_imported}</td>
-                  <td className="p-3 text-right text-gray-400">{r.questions_skipped}</td>
-                </tr>
-              ))}
-              {!uploading && (
+              {results.map((r, i) => {
+                const colors: Record<string, string> = {
+                  uploading: 'text-blue-600', saving: 'text-blue-600',
+                  parsing: 'text-orange-500', importing: 'text-orange-500',
+                  done: 'text-green-600', error: 'text-red-600',
+                };
+                return (
+                  <tr key={i} className={`border-t ${r.status === 'error' ? 'bg-red-50' : ''}`}>
+                    <td className="p-3">{r.filename}</td>
+                    <td className={`p-3 text-center font-medium ${colors[r.status] || ''}`}>
+                      {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : `${r.status}...`}
+                      {r.error && <span className="block text-xs text-red-500">{r.error}</span>}
+                    </td>
+                    <td className="p-3 text-right">{r.result?.questions_parsed ?? '-'}</td>
+                    <td className="p-3 text-right font-medium text-green-700">{r.result?.questions_imported ?? '-'}</td>
+                  </tr>
+                );
+              })}
+              {allDone && (
                 <tr className="border-t bg-gray-50 font-medium">
                   <td className="p-3">Total</td>
-                  <td className="p-3 text-right">{results.reduce((s, r) => s + r.questions_parsed, 0)}</td>
-                  <td className="p-3 text-right">{results.reduce((s, r) => s + r.answers_matched, 0)}</td>
-                  <td className="p-3 text-right text-green-700">{results.reduce((s, r) => s + r.questions_imported, 0)}</td>
-                  <td className="p-3 text-right">{results.reduce((s, r) => s + r.questions_skipped, 0)}</td>
+                  <td className="p-3 text-center">{results.length} file(s)</td>
+                  <td className="p-3 text-right">{results.reduce((s, r) => s + (r.result?.questions_parsed || 0), 0)}</td>
+                  <td className="p-3 text-right text-green-700">{results.reduce((s, r) => s + (r.result?.questions_imported || 0), 0)}</td>
                 </tr>
               )}
             </tbody>
@@ -135,7 +161,7 @@ export default function UploadQuestions() {
         </div>
       )}
 
-      {!uploading && results.length > 0 && (
+      {allDone && (
         <div className="flex justify-end mt-4">
           <button onClick={() => navigate('/editor/questions')} className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 font-medium">
             Go to Questions
