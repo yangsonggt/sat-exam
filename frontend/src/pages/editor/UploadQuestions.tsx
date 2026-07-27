@@ -124,9 +124,7 @@ export default function UploadQuestions() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left p-3">File</th>
-                <th className="text-center p-3">Status</th>
-                <th className="text-right p-3">Parsed</th>
-                <th className="text-right p-3">Imported</th>
+                <th className="text-left p-3" colSpan={3}>Status / Progress</th>
               </tr>
             </thead>
             <tbody>
