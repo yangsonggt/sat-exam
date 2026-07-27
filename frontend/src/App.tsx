@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
+import { ToastProvider } from './ToastContext';
 import Layout from './pages/Layout';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -27,8 +28,9 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+      <ToastProvider>
+        <AuthProvider>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
@@ -48,6 +50,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </AuthProvider>
-    </BrowserRouter>
+      </ToastProvider>
+      </BrowserRouter>
   );
 }

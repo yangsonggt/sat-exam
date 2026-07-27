@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, type DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useToast } from '../../ToastContext';
 
 interface UploadResult {
   job_id?: string;
@@ -17,9 +18,11 @@ interface UploadResult {
 
 export default function UploadQuestions() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const notifiedJobs = useState<Set<string>>(new Set())[0];
 
   const pollJob = useCallback(async (jobId: string, idx: number) => {
     const token = localStorage.getItem('access_token');
@@ -29,7 +32,17 @@ export default function UploadQuestions() {
       });
       setResults(prev => {
         const next = [...prev];
+        const oldStatus = next[idx]?.status;
         next[idx] = { job_id: jobId, filename: data.filename, status: data.status, result: data.result, error: data.error };
+        // Fire toast when job transitions to done
+        if (data.status === 'done' && oldStatus !== 'done' && data.result && !notifiedJobs.has(jobId)) {
+          notifiedJobs.add(jobId);
+          addToast(`✓ ${data.filename}: ${data.result.questions_imported} questions imported`, 'success');
+        }
+        if (data.status === 'error' && oldStatus !== 'error' && !notifiedJobs.has(jobId)) {
+          notifiedJobs.add(jobId);
+          addToast(`✗ ${data.filename}: ${data.error || 'Parse failed'}`, 'error');
+        }
         return next;
       });
       if (data.status === 'done' || data.status === 'error') return;
@@ -41,7 +54,7 @@ export default function UploadQuestions() {
         return next;
       });
     }
-  }, []);
+  }, [addToast]);
 
   // Load existing jobs on mount
   const loadJobs = useCallback(async () => {
@@ -58,8 +71,6 @@ export default function UploadQuestions() {
         error: j.error,
       }));
       setResults(jobs);
-      
-      // Poll active jobs
       jobs.forEach((j, i) => {
         if (!['done', 'error'].includes(j.status) && j.job_id) {
           pollJob(j.job_id, i);
@@ -97,16 +108,9 @@ export default function UploadQuestions() {
     setUploading(true);
     setResults([]);
     const fileArray = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
-
-    // Initialize all slots
-    const initial: UploadResult[] = fileArray.map(f => ({
-      filename: f.name, status: 'uploading',
-    }));
+    const initial: UploadResult[] = fileArray.map(f => ({ filename: f.name, status: 'uploading' }));
     setResults(initial);
-
-    // Start all uploads in parallel
     fileArray.forEach((file, i) => processFile(file, i));
-
     setUploading(false);
   }, [pollJob]);
 
@@ -117,6 +121,10 @@ export default function UploadQuestions() {
   };
 
   const allDone = results.length > 0 && results.every(r => r.status === 'done' || r.status === 'error');
+  const totalParsed = results.reduce((s, r) => s + (r.result?.questions_parsed || 0), 0);
+  const totalImported = results.reduce((s, r) => s + (r.result?.questions_imported || 0), 0);
+  const totalSkipped = results.reduce((s, r) => s + (r.result?.questions_skipped || 0), 0);
+  const inProgress = results.filter(r => !['done', 'error'].includes(r.status)).length;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -134,17 +142,38 @@ export default function UploadQuestions() {
         <p className="text-xs text-gray-400 mb-4">or</p>
         <label className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 cursor-pointer font-medium text-sm">
           Browse Files
-          <input
-            type="file"
-            multiple
-            accept=".pdf"
+          <input type="file" multiple accept=".pdf"
             onChange={e => { if (e.target.files?.length) handleFiles(e.target.files); }}
-            className="hidden"
-          />
+            className="hidden" />
         </label>
         <p className="text-xs text-gray-400 mt-3">Supports multiple files. Each PDF is OCR'd and imported as drafts.</p>
       </div>
 
+      {/* ── Summary card ── */}
+      {results.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 grid grid-cols-4 gap-4 text-center">
+          <div>
+            <div className="text-2xl font-bold text-blue-600">{results.length}</div>
+            <div className="text-xs text-gray-500">Files</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-600">{totalParsed}</div>
+            <div className="text-xs text-gray-500">Questions Parsed</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-700">{totalImported}</div>
+            <div className="text-xs text-gray-500">Imported</div>
+          </div>
+          <div>
+            <div className={`text-2xl font-bold ${inProgress > 0 ? 'text-orange-500 animate-pulse' : 'text-gray-400'}`}>
+              {inProgress || totalSkipped || '—'}
+            </div>
+            <div className="text-xs text-gray-500">{inProgress > 0 ? 'In Progress' : 'Skipped'}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Job table ── */}
       {results.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <table className="w-full text-sm">
@@ -173,7 +202,7 @@ export default function UploadQuestions() {
                         </div>
                       )}
                       <div className={`text-xs font-medium flex items-center gap-2 ${r.status === 'done' ? 'text-green-600' : r.status === 'error' ? 'text-red-600' : colors[r.status] ? colors[r.status].replace('bg-', 'text-') : 'text-gray-500'}`}>
-                        {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : r.status === 'parsing' ? '🔍 OCR parsing...' : r.status === 'importing' ? '💾 Importing to DB...' : r.status === 'saving' ? '📄 Saving file...' : r.status === 'uploading' ? '⬆ Uploading...' : r.status}
+                        {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : r.status === 'parsing' ? '🔍 OCR parsing...' : r.status === 'importing' ? '💾 Importing...' : r.status === 'saving' ? '📄 Saving...' : r.status === 'uploading' ? '⬆ Uploading...' : r.status}
                         {r.result && r.status === 'done' && (
                           <span className="font-normal text-gray-500 ml-2">({r.result.questions_parsed} parsed, {r.result.questions_imported} imported)</span>
                         )}
@@ -183,14 +212,6 @@ export default function UploadQuestions() {
                   </tr>
                 );
               })}
-              {allDone && (
-                <tr className="border-t bg-gray-50 font-medium">
-                  <td className="p-3">Total</td>
-                  <td className="p-3 text-center">{results.length} file(s)</td>
-                  <td className="p-3 text-right">{results.reduce((s, r) => s + (r.result?.questions_parsed || 0), 0)}</td>
-                  <td className="p-3 text-right text-green-700">{results.reduce((s, r) => s + (r.result?.questions_imported || 0), 0)}</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
