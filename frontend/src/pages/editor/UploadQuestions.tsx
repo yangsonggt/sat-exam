@@ -132,19 +132,29 @@ export default function UploadQuestions() {
             <tbody>
               {results.map((r, i) => {
                 const colors: Record<string, string> = {
-                  uploading: 'text-blue-600', saving: 'text-blue-600',
-                  parsing: 'text-orange-500', importing: 'text-orange-500',
-                  done: 'text-green-600', error: 'text-red-600',
+                  uploading: 'bg-blue-500', saving: 'bg-blue-500',
+                  parsing: 'bg-orange-500', importing: 'bg-orange-400',
+                  done: 'bg-green-500', error: 'bg-red-500',
                 };
+                const working = !['done', 'error'].includes(r.status);
                 return (
                   <tr key={i} className={`border-t ${r.status === 'error' ? 'bg-red-50' : ''}`}>
                     <td className="p-3">{r.filename}</td>
-                    <td className={`p-3 text-center font-medium ${colors[r.status] || ''}`}>
-                      {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : `${r.status}...`}
-                      {r.error && <span className="block text-xs text-red-500">{r.error}</span>}
+                    <td className="p-3" colSpan={3}>
+                      {working && (
+                        <div className="w-full bg-gray-200 rounded-full h-3 mb-1 overflow-hidden">
+                          <div className={`h-3 rounded-full ${colors[r.status] || 'bg-gray-400'} transition-all duration-1000 animate-pulse`}
+                            style={{ width: r.status === 'importing' ? '90%' : r.status === 'parsing' ? '60%' : r.status === 'saving' ? '20%' : r.status === 'uploading' ? '10%' : '100%' }} />
+                        </div>
+                      )}
+                      <div className={`text-xs font-medium flex items-center gap-2 ${r.status === 'done' ? 'text-green-600' : r.status === 'error' ? 'text-red-600' : colors[r.status] ? colors[r.status].replace('bg-', 'text-') : 'text-gray-500'}`}>
+                        {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : r.status === 'parsing' ? '🔍 OCR parsing...' : r.status === 'importing' ? '💾 Importing to DB...' : r.status === 'saving' ? '📄 Saving file...' : r.status === 'uploading' ? '⬆ Uploading...' : r.status}
+                        {r.result && r.status === 'done' && (
+                          <span className="font-normal text-gray-500 ml-2">({r.result.questions_parsed} parsed, {r.result.questions_imported} imported)</span>
+                        )}
+                      </div>
+                      {r.error && <span className="block text-xs text-red-500 mt-0.5">{r.error}</span>}
                     </td>
-                    <td className="p-3 text-right">{r.result?.questions_parsed ?? '-'}</td>
-                    <td className="p-3 text-right font-medium text-green-700">{r.result?.questions_imported ?? '-'}</td>
                   </tr>
                 );
               })}
