@@ -16,6 +16,7 @@ pip install -q aiosqlite
 
 # 3. Set SQLite URL
 export DATABASE_URL="sqlite+aiosqlite:///./sat_exam.db"
+export PYTHONPATH="$PYTHONPATH:$(dirname "$(dirname "$0")")"
 
 # 4. Create tables
 echo ">>> Creating database tables..."

@@ -5,11 +5,13 @@ const navItems: Record<string, { label: string; path: string }[]> = {
   admin: [
     { label: 'Dashboard', path: '/admin' },
     { label: 'Users', path: '/admin/users' },
+    { label: 'Upload', path: '/editor/upload' },
     { label: 'Questions', path: '/editor/questions' },
     { label: 'Exams', path: '/editor/exams' },
   ],
   editor: [
     { label: 'Dashboard', path: '/editor' },
+    { label: 'Upload', path: '/editor/upload' },
     { label: 'Questions', path: '/editor/questions' },
     { label: 'Exams', path: '/editor/exams' },
   ],
