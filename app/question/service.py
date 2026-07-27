@@ -203,6 +203,12 @@ async def delete_question(db: AsyncSession, question_id: str) -> None:
             },
         )
 
+    # Delete versions first, then the question
+    versions_result = await db.execute(
+        select(QuestionVersion).where(QuestionVersion.question_id == question_id)
+    )
+    for version in versions_result.scalars().all():
+        await db.delete(version)
     await db.delete(question)
     await db.commit()
 
